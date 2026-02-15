@@ -23,10 +23,12 @@ public class secret_redirect extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         HttpSession session = req.getSession(false);
-        if (session == null) {
+        if (session == null || session.getAttribute("i was here!") == null) {
             resp.sendRedirect("/a");
             return;
         }
+
+        session.removeAttribute("i was here!");
 
         resp.setContentType("text/html");
         resp.setStatus(HttpServletResponse.SC_OK);

@@ -26,6 +26,7 @@ public class final_redirect extends HttpServlet {
             resp.sendRedirect("/a");
             return;
         }
+        session.removeAttribute("i was here!");
 
         try {
             Thread.sleep(5000);
