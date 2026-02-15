@@ -1,11 +1,16 @@
 package org.example;
 
 import org.pcap4j.core.*;
-import org.pcap4j.packet.BsdLoopbackPacket;
-import org.pcap4j.packet.IpV6Packet;
-import org.pcap4j.packet.Packet;
-import org.pcap4j.packet.TcpPacket;
+import org.pcap4j.packet.*;
+import org.pcap4j.packet.namednumber.IpNumber;
+import org.pcap4j.packet.namednumber.IpVersion;
+import org.pcap4j.packet.namednumber.ProtocolFamily;
+import org.pcap4j.packet.namednumber.TcpPort;
 
+import java.net.Inet6Address;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class PcapParser_student_view {
@@ -117,5 +122,19 @@ public class PcapParser_student_view {
             System.out.println("  Data: " + new String(packet.getPayload().getRawData()));
         }
         System.out.println("---------------------------------");
+    }
+
+    /**
+     * Injects a TCP packet that redirects from final destination
+     *
+     * @param handle {@link PcapHandle} handle
+     * @param originalIp The captured IPv6 packet (the request)
+     * @param originalTcp The captured TCP packet (the request)
+     */
+    /**
+     * Injects a TCP Response (HTTP 302) impersonating the server
+     */
+    public static void inject(PcapHandle handle, IpV6Packet.IpV6FlowLabel flowLabel, IpV6Packet originalIp, TcpPacket originalTcp) throws NotOpenException, PcapNativeException {
+        // todo! fill in this method
     }
 }
