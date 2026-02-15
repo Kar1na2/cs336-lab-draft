@@ -27,6 +27,7 @@ public class PcapParser {
      * @param args Command-line arguments
      */
     public static void main(String[] args) throws PcapNativeException, NotOpenException {
+        System.setProperty("org.pcap4j.af.inet6", "24");
         PcapNetworkInterface device = getInterface();
         if (device == null) {
             System.err.println("No Interfaces found.");
@@ -54,7 +55,7 @@ public class PcapParser {
         List<PcapNetworkInterface> allDevs = Pcaps.findAllDevs();
         if (allDevs == null || allDevs.isEmpty()) return null;
 
-        return allDevs.get(5);
+        return allDevs.get(8);
     }
 
     /**
@@ -102,17 +103,13 @@ public class PcapParser {
                     IpV6Packet ipv6 = IpV6Packet.newPacket(rawData, 0, rawData.length);
 
                     if (ipv6.getPayload() instanceof TcpPacket tcp) {
-                        // Remove this comment after you fill in "inject" method
-                        // CHECK FOR THE TARGET REQUEST
                         if (tcp.getPayload() != null) {
                             String payloadData = new String(tcp.getPayload().getRawData());
 
-                            // Get the flow label
                             if (payloadData.contains("HTTP/1.1 302 Found")) {
                                 flowLabel.set(ipv6.getHeader().getFlowLabel());
                             }
 
-                            // Only inject when the browser asks for the final page
                             if (payloadData.contains("GET /d HTTP/1.1")) {
                                 inject(handle, flowLabel.get(), ipv6, tcp);
                             }
