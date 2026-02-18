@@ -21,13 +21,6 @@ public class final_redirect extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        HttpSession session = req.getSession(false);
-        if (session == null) {
-            resp.sendRedirect("/a");
-            return;
-        }
-        session.removeAttribute("i was here!");
-
         try {
             Thread.sleep(5000);
         } catch (InterruptedException e) {

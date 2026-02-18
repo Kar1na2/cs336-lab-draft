@@ -1,9 +1,9 @@
 package org.example.Servlets;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -22,13 +22,22 @@ public class secret_redirect extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        HttpSession session = req.getSession(false);
-        if (session == null || session.getAttribute("i was here!") == null) {
-            resp.sendRedirect("/a");
-            return;
+        boolean redirect = true;
+
+        Cookie[] cookies = req.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie: cookies) {
+                if (cookie.getName().equals("FlowState")) {
+                    redirect = false;
+                }
+            }
         }
 
-        session.removeAttribute("i was here!");
+        if (redirect) {
+            resp.setStatus(HttpServletResponse.SC_FOUND);
+            resp.setHeader("Location", "/a");
+            return;
+        }
 
         resp.setContentType("text/html");
         resp.setStatus(HttpServletResponse.SC_OK);

@@ -8,12 +8,18 @@ import org.pcap4j.packet.namednumber.*;
 
 import java.net.Inet6Address;
 import java.nio.charset.StandardCharsets;
+import java.sql.Array;
 import java.time.format.DateTimeFormatter;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Parses Pcap file from simple server and later injects Packets into it
@@ -166,14 +172,12 @@ public class PcapParser {
                 + "Server: Jetty(11.0.24)\r\n"
                 + "\r\n";
 
-        byte[] http_payload = data.getBytes(StandardCharsets.UTF_8);
-        UnknownPacket.Builder http_builder = new UnknownPacket.Builder();
-        http_builder.rawData(http_payload);
+        byte[] http_packet = data.getBytes(StandardCharsets.UTF_8);
 
-        int len = 0;
-        if (originalTcp.getPayload() != null) {
-            len = originalTcp.getPayload().length();
-        }
+        UnknownPacket.Builder http_builder = new UnknownPacket.Builder();
+        http_builder.rawData(http_packet);
+
+        int len = originalTcp.getPayload().length();
 
         TcpPacket.TcpHeader tcpHeader = originalTcp.getHeader();
 
